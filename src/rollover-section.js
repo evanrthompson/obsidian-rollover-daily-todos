@@ -128,3 +128,59 @@ export function trimSection(section, opts) {
     rolledCount,
   };
 }
+
+function headingKey(line) {
+  return (line || "").replace(/\s+$/, "");
+}
+
+// Merge yesterday's trimmed section into today's parsed section.
+// - Append yesterday's preamble to today's preamble.
+// - For each yesterday sub-section, find today's matching sub-section (exact heading
+//   match after trimming trailing whitespace). If found, append body at bottom of
+//   today's body. If not found, append the full sub-section to the end of today's list.
+// - leadingNewLine=true inserts a blank line before appended content (but not when
+//   today's target is empty).
+export function mergeSection(yesterday, today, opts) {
+  const { leadingNewLine } = opts;
+
+  const appendBody = (existing, incoming) => {
+    if (incoming.length === 0) return existing.slice();
+    if (existing.length === 0) return incoming.slice();
+    if (leadingNewLine) return [...existing, "", ...incoming];
+    return [...existing, ...incoming];
+  };
+
+  const merged = {
+    preamble: appendBody(today.preamble, yesterday.preamble),
+    subsections: today.subsections.map((s) => ({
+      heading: s.heading,
+      headingLevel: s.headingLevel,
+      body: s.body.slice(),
+    })),
+  };
+
+  const todayIndexByKey = new Map();
+  merged.subsections.forEach((sub, idx) => {
+    todayIndexByKey.set(headingKey(sub.heading), idx);
+  });
+
+  for (const ySub of yesterday.subsections) {
+    const key = headingKey(ySub.heading);
+    if (todayIndexByKey.has(key)) {
+      const idx = todayIndexByKey.get(key);
+      merged.subsections[idx].body = appendBody(
+        merged.subsections[idx].body,
+        ySub.body
+      );
+    } else {
+      merged.subsections.push({
+        heading: ySub.heading,
+        headingLevel: ySub.headingLevel,
+        body: ySub.body.slice(),
+      });
+      todayIndexByKey.set(key, merged.subsections.length - 1);
+    }
+  }
+
+  return merged;
+}

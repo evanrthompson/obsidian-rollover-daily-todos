@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { trimBodyLines, trimSection } from "./rollover-section";
+import { trimBodyLines, trimSection, mergeSection } from "./rollover-section";
 
 const defaultOpts = {
   doneStatusMarkers: "xX-",
@@ -170,4 +170,106 @@ test("trimSection returns total rolled count", () => {
   });
   // 1 (preamble todo) + 2 (sub-section a, excluding done) = 3
   expect(rolledCount).toBe(3);
+});
+
+test("mergeSection appends matching sub-sections at the bottom of today's body", () => {
+  const yesterday = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] y1"] },
+    ],
+  };
+  const today = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] t1"] },
+    ],
+  };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: false });
+  expect(merged.subsections).toEqual([
+    { heading: "### asap", headingLevel: 3, body: ["- [ ] t1", "- [ ] y1"] },
+  ]);
+});
+
+test("mergeSection creates new sub-section when today lacks a match", () => {
+  const yesterday = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] y1"] },
+      { heading: "### ad-hoc", headingLevel: 3, body: ["- [ ] y2"] },
+    ],
+  };
+  const today = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: [] },
+    ],
+  };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: false });
+  expect(merged.subsections).toEqual([
+    { heading: "### asap", headingLevel: 3, body: ["- [ ] y1"] },
+    { heading: "### ad-hoc", headingLevel: 3, body: ["- [ ] y2"] },
+  ]);
+});
+
+test("mergeSection appends yesterday's preamble to today's preamble", () => {
+  const yesterday = {
+    preamble: ["y-pre"],
+    subsections: [],
+  };
+  const today = {
+    preamble: ["t-pre"],
+    subsections: [],
+  };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: false });
+  expect(merged.preamble).toEqual(["t-pre", "y-pre"]);
+});
+
+test("mergeSection with leadingNewLine=true inserts a blank before appended content", () => {
+  const yesterday = {
+    preamble: ["y-pre"],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] y1"] },
+    ],
+  };
+  const today = {
+    preamble: ["t-pre"],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] t1"] },
+    ],
+  };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: true });
+  expect(merged.preamble).toEqual(["t-pre", "", "y-pre"]);
+  expect(merged.subsections[0].body).toEqual(["- [ ] t1", "", "- [ ] y1"]);
+});
+
+test("mergeSection with leadingNewLine=true skips blank when today side is empty", () => {
+  const yesterday = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] y1"] },
+    ],
+  };
+  const today = {
+    preamble: [],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: [] },
+    ],
+  };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: true });
+  expect(merged.subsections[0].body).toEqual(["- [ ] y1"]);
+});
+
+test("mergeSection preserves heading level of yesterday-only sub-section", () => {
+  const yesterday = {
+    preamble: [],
+    subsections: [
+      { heading: "#### deep-only-in-yesterday", headingLevel: 4, body: ["- [ ] y"] },
+    ],
+  };
+  const today = { preamble: [], subsections: [] };
+  const merged = mergeSection(yesterday, today, { leadingNewLine: false });
+  expect(merged.subsections).toEqual([
+    { heading: "#### deep-only-in-yesterday", headingLevel: 4, body: ["- [ ] y"] },
+  ]);
 });
