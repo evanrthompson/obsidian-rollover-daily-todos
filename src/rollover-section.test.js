@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { trimBodyLines, trimSection, mergeSection, serializeSection, removeRolledFromYesterday } from "./rollover-section";
+import { trimBodyLines, trimSection, mergeSection, serializeSection, removeRolledFromYesterday, performSectionRollover } from "./rollover-section";
 
 const defaultOpts = {
   doneStatusMarkers: "xX-",
@@ -351,4 +351,151 @@ test("removeRolledFromYesterday with removeEmptyTodos=true leaves empty todos in
   // "- [ ] real" gets rolled → removed from yesterday.
   // "- [ ] " is dropped by removeEmptyTodos → stays on yesterday (it wasn't rolled).
   expect(result).toBe(["## Rollover", "- [ ] "].join("\n"));
+});
+
+const baseOpts = {
+  doneStatusMarkers: "xX-",
+  rolloverChildren: true,
+  removeEmptyTodos: false,
+  leadingNewLine: false,
+  deleteOnComplete: false,
+};
+
+test("performSectionRollover end-to-end merges section content correctly", () => {
+  const yesterday = [
+    "# 2026-04-13",
+    "",
+    "## Rollover",
+    "### asap",
+    "- [x] done yesterday",
+    "- [ ] open yesterday",
+    "    - [ ] child",
+    "### this week",
+    "- [ ] week1",
+    "",
+    "## Notes",
+    "notes stay here",
+  ].join("\n");
+
+  const today = [
+    "# 2026-04-14",
+    "",
+    "## Rollover",
+    "### asap",
+    "### this week",
+    "",
+    "## Notes",
+    "",
+  ].join("\n");
+
+  const result = performSectionRollover(yesterday, today, "## Rollover", baseOpts);
+  expect(result.status).toBe("ok");
+  expect(result.rolledCount).toBe(2);
+  expect(result.newTodayContent).toBe(
+    [
+      "# 2026-04-14",
+      "",
+      "## Rollover",
+      "### asap",
+      "- [ ] open yesterday",
+      "    - [ ] child",
+      "### this week",
+      "- [ ] week1",
+      "",
+      "## Notes",
+      "",
+    ].join("\n")
+  );
+  expect(result.newYesterdayContent).toBeNull();
+});
+
+test("performSectionRollover returns status=missing-yesterday when yesterday has no section", () => {
+  const yesterday = "# Yesterday\n- [ ] stray\n";
+  const today = "# Today\n## Rollover\n";
+  const result = performSectionRollover(yesterday, today, "## Rollover", baseOpts);
+  expect(result.status).toBe("missing-yesterday");
+  expect(result.newTodayContent).toBeNull();
+  expect(result.newYesterdayContent).toBeNull();
+});
+
+test("performSectionRollover returns status=missing-today when today has no section", () => {
+  const yesterday = "## Rollover\n- [ ] thing\n";
+  const today = "# Today\n(no section heading)\n";
+  const result = performSectionRollover(yesterday, today, "## Rollover", baseOpts);
+  expect(result.status).toBe("missing-today");
+  expect(result.newTodayContent).toBeNull();
+  expect(result.newYesterdayContent).toBeNull();
+});
+
+test("performSectionRollover with deleteOnComplete returns updated yesterday content", () => {
+  const yesterday = [
+    "## Rollover",
+    "### asap",
+    "- [x] done",
+    "- [ ] rolled",
+    "## Notes",
+  ].join("\n");
+  const today = ["## Rollover", "### asap", "## Notes"].join("\n");
+
+  const result = performSectionRollover(yesterday, today, "## Rollover", {
+    ...baseOpts,
+    deleteOnComplete: true,
+  });
+  expect(result.status).toBe("ok");
+  expect(result.newYesterdayContent).toBe(
+    ["## Rollover", "### asap", "- [x] done", "## Notes"].join("\n")
+  );
+});
+
+test("performSectionRollover creates yesterday-only sub-section on today's side", () => {
+  const yesterday = [
+    "## Rollover",
+    "### existing",
+    "- [ ] a",
+    "### extra",
+    "- [ ] b",
+  ].join("\n");
+  const today = ["## Rollover", "### existing"].join("\n");
+
+  const result = performSectionRollover(yesterday, today, "## Rollover", baseOpts);
+  expect(result.newTodayContent).toBe(
+    [
+      "## Rollover",
+      "### existing",
+      "- [ ] a",
+      "### extra",
+      "- [ ] b",
+    ].join("\n")
+  );
+});
+
+test("performSectionRollover is a no-op (0 rolled) when yesterday section has no open todos or content", () => {
+  const yesterday = ["## Rollover", "### asap", "- [x] done"].join("\n");
+  const today = ["## Rollover", "### asap"].join("\n");
+  const result = performSectionRollover(yesterday, today, "## Rollover", baseOpts);
+  expect(result.status).toBe("ok");
+  expect(result.rolledCount).toBe(0);
+  // today's content may still be rewritten (structurally equivalent). Verify structural result.
+  expect(result.newTodayContent).toBe(["## Rollover", "### asap"].join("\n"));
+});
+
+test("performSectionRollover with leadingNewLine inserts blank before appended content", () => {
+  const yesterday = [
+    "## Rollover",
+    "### asap",
+    "- [ ] y1",
+  ].join("\n");
+  const today = [
+    "## Rollover",
+    "### asap",
+    "- [ ] t1",
+  ].join("\n");
+
+  const result = performSectionRollover(yesterday, today, "## Rollover", {
+    ...baseOpts,
+    leadingNewLine: true,
+  });
+  expect(result.newTodayContent).toBe(
+    ["## Rollover", "### asap", "- [ ] t1", "", "- [ ] y1"].join("\n")
+  );
 });

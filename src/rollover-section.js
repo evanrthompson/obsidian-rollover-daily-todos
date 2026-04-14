@@ -1,5 +1,5 @@
 import { getTodoStatus, getIndent } from "./todo-utils";
-import { locateSection } from "./get-section";
+import { locateSection, parseSectionBody } from "./get-section";
 
 // Return the count of consecutive lines after `start` whose indentation is strictly
 // greater than `baseIndent`. These represent "children" of the line at `start`.
@@ -55,10 +55,12 @@ export function trimBodyLines(lines, opts) {
   const { doneStatusMarkers, rolloverChildren, removeEmptyTodos } = opts;
   const kept = [];
   const rolledLineIndices = [];
+  let rolledTodoCount = 0;
 
   const keepOpenTodo = (i, childCount) => {
     kept.push(lines[i]);
     rolledLineIndices.push(i);
+    rolledTodoCount++;
     if (rolloverChildren) {
       for (let j = 1; j <= childCount; j++) {
         kept.push(lines[i + j]);
@@ -103,7 +105,7 @@ export function trimBodyLines(lines, opts) {
     i++;
   }
 
-  return { kept, rolledLineIndices };
+  return { kept, rolledLineIndices, rolledTodoCount };
 }
 
 // Trim a parsed Section tree. Returns a new tree (old tree is not mutated) plus
@@ -112,11 +114,11 @@ export function trimBodyLines(lines, opts) {
 //   trimSection(section, opts) -> { section: trimmedSection, rolledCount: number }
 export function trimSection(section, opts) {
   const preambleResult = trimBodyLines(section.preamble, opts);
-  let rolledCount = preambleResult.rolledLineIndices.length;
+  let rolledCount = preambleResult.rolledTodoCount;
 
   const subsections = section.subsections.map((sub) => {
     const subResult = trimBodyLines(sub.body, opts);
-    rolledCount += subResult.rolledLineIndices.length;
+    rolledCount += subResult.rolledTodoCount;
     return {
       heading: sub.heading,
       headingLevel: sub.headingLevel,
@@ -221,4 +223,82 @@ export function serializeSection(section) {
     }
   }
   return out;
+}
+
+// Pure orchestrator: no Obsidian API calls. Given yesterday and today file contents as
+// strings, return a result describing what to do.
+//
+//   performSectionRollover(yesterdayContent, todayContent, headingLine, opts)
+//     -> {
+//       status: "ok" | "missing-yesterday" | "missing-today",
+//       newTodayContent: string | null,
+//       newYesterdayContent: string | null,  // populated only if deleteOnComplete and status === "ok"
+//       rolledCount: number,                 // 0 if status !== "ok"
+//     }
+//
+// The caller (src/index.js) is responsible for writing the files and showing notices.
+export function performSectionRollover(yesterdayContent, todayContent, headingLine, opts) {
+  const yLines = yesterdayContent.split(/\r?\n/);
+  const tLines = todayContent.split(/\r?\n/);
+
+  const yLoc = locateSection(yLines, headingLine);
+  if (!yLoc) {
+    return {
+      status: "missing-yesterday",
+      newTodayContent: null,
+      newYesterdayContent: null,
+      rolledCount: 0,
+    };
+  }
+  const tLoc = locateSection(tLines, headingLine);
+  if (!tLoc) {
+    return {
+      status: "missing-today",
+      newTodayContent: null,
+      newYesterdayContent: null,
+      rolledCount: 0,
+    };
+  }
+
+  const splitTrailingBlanks = (arr) => {
+    let end = arr.length;
+    while (end > 0 && arr[end - 1].trim() === "") end--;
+    return { content: arr.slice(0, end), trailing: arr.slice(end) };
+  };
+
+  const yRaw = yLines.slice(yLoc.headingIndex + 1, yLoc.endIndex);
+  const tRaw = tLines.slice(tLoc.headingIndex + 1, tLoc.endIndex);
+  const { content: yBody } = splitTrailingBlanks(yRaw);
+  const { content: tBody, trailing: tTrailing } = splitTrailingBlanks(tRaw);
+
+  const ySection = parseSectionBody(yBody, yLoc.level);
+  const tSection = parseSectionBody(tBody, tLoc.level);
+
+  const { section: yTrimmed, rolledCount } = trimSection(ySection, opts);
+  const mergedToday = mergeSection(yTrimmed, tSection, opts);
+  const serialized = serializeSection(mergedToday);
+
+  const before = tLines.slice(0, tLoc.headingIndex + 1);
+  const after = tLines.slice(tLoc.endIndex);
+  const newTodayContent = [...before, ...serialized, ...tTrailing, ...after].join("\n");
+
+  let newYesterdayContent = null;
+  if (opts.deleteOnComplete) {
+    newYesterdayContent = removeRolledFromYesterday(
+      yesterdayContent,
+      headingLine,
+      opts
+    );
+    // If nothing was removed, don't rewrite the file.
+    if (newYesterdayContent === yesterdayContent) {
+      newYesterdayContent = null;
+    }
+  }
+
+  return {
+    status: "ok",
+    newTodayContent,
+    newYesterdayContent,
+    rolledCount,
+  };
 }
