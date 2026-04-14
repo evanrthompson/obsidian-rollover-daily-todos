@@ -679,9 +679,14 @@ import { getTodoStatus, getIndent } from "./todo-utils";
 
 // Return the count of consecutive lines after `start` whose indentation is strictly
 // greater than `baseIndent`. These represent "children" of the line at `start`.
+// Blank lines and whitespace-only lines never count as children — they terminate the run.
 function countChildren(lines, start, baseIndent) {
   let i = start + 1;
-  while (i < lines.length && lines[i].length > 0 && getIndent(lines[i]) > baseIndent) {
+  while (
+    i < lines.length &&
+    lines[i].trim().length > 0 &&
+    getIndent(lines[i]) > baseIndent
+  ) {
     i++;
   }
   return i - start - 1;
