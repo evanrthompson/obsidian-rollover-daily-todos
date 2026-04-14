@@ -184,3 +184,17 @@ export function mergeSection(yesterday, today, opts) {
 
   return merged;
 }
+
+// Flatten a Section tree back into an array of lines, preserving order.
+// Does not include the section's own delimiting heading — the caller splices
+// these lines between the heading line and the section's end in the file.
+export function serializeSection(section) {
+  const out = [...section.preamble];
+  for (const sub of section.subsections) {
+    out.push(sub.heading);
+    for (const line of sub.body) {
+      out.push(line);
+    }
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { trimBodyLines, trimSection, mergeSection } from "./rollover-section";
+import { trimBodyLines, trimSection, mergeSection, serializeSection } from "./rollover-section";
 
 const defaultOpts = {
   doneStatusMarkers: "xX-",
@@ -272,4 +272,40 @@ test("mergeSection preserves heading level of yesterday-only sub-section", () =>
   expect(merged.subsections).toEqual([
     { heading: "#### deep-only-in-yesterday", headingLevel: 4, body: ["- [ ] y"] },
   ]);
+});
+
+test("serializeSection round-trips a tree back into lines", () => {
+  const section = {
+    preamble: ["intro", ""],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] a"] },
+      { heading: "### week", headingLevel: 3, body: ["- [ ] b", ""] },
+    ],
+  };
+  expect(serializeSection(section)).toEqual([
+    "intro",
+    "",
+    "### asap",
+    "- [ ] a",
+    "### week",
+    "- [ ] b",
+    "",
+  ]);
+});
+
+test("serializeSection with empty preamble and one sub-section", () => {
+  const section = {
+    preamble: [],
+    subsections: [{ heading: "### only", headingLevel: 3, body: ["- [ ] x"] }],
+  };
+  expect(serializeSection(section)).toEqual(["### only", "- [ ] x"]);
+});
+
+test("serializeSection with only preamble", () => {
+  const section = { preamble: ["just text"], subsections: [] };
+  expect(serializeSection(section)).toEqual(["just text"]);
+});
+
+test("serializeSection of fully empty section returns empty array", () => {
+  expect(serializeSection({ preamble: [], subsections: [] })).toEqual([]);
 });
