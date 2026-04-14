@@ -91,3 +91,66 @@ test("locateSection returns null if heading arg is not a heading", () => {
   const lines = ["## Rollover", "- [ ] thing"];
   expect(locateSection(lines, "not a heading")).toBeNull();
 });
+
+import { parseSectionBody } from "./get-section";
+
+test("parseSectionBody with no sub-headers puts everything in preamble", () => {
+  const body = ["- [ ] thing", "- [x] done", "some text"];
+  expect(parseSectionBody(body, 2)).toEqual({
+    preamble: ["- [ ] thing", "- [x] done", "some text"],
+    subsections: [],
+  });
+});
+
+test("parseSectionBody splits on deeper-level headings", () => {
+  const body = [
+    "intro line",
+    "### asap",
+    "- [ ] a",
+    "### this week",
+    "- [ ] b",
+  ];
+  expect(parseSectionBody(body, 2)).toEqual({
+    preamble: ["intro line"],
+    subsections: [
+      { heading: "### asap", headingLevel: 3, body: ["- [ ] a"] },
+      { heading: "### this week", headingLevel: 3, body: ["- [ ] b"] },
+    ],
+  });
+});
+
+test("parseSectionBody keeps a deeper heading inside a sub-section's body", () => {
+  const body = [
+    "### asap",
+    "- [ ] a",
+    "#### really-sub",
+    "- [ ] nested",
+    "### this week",
+    "- [ ] b",
+  ];
+  const result = parseSectionBody(body, 2);
+  expect(result.subsections).toEqual([
+    {
+      heading: "### asap",
+      headingLevel: 3,
+      body: ["- [ ] a", "#### really-sub", "- [ ] nested"],
+    },
+    { heading: "### this week", headingLevel: 3, body: ["- [ ] b"] },
+  ]);
+  expect(result.preamble).toEqual([]);
+});
+
+test("parseSectionBody treats level-4 heading as sub-section when section level is 3", () => {
+  const body = ["#### one", "- [ ] a", "#### two", "- [ ] b"];
+  expect(parseSectionBody(body, 3)).toEqual({
+    preamble: [],
+    subsections: [
+      { heading: "#### one", headingLevel: 4, body: ["- [ ] a"] },
+      { heading: "#### two", headingLevel: 4, body: ["- [ ] b"] },
+    ],
+  });
+});
+
+test("parseSectionBody with empty body returns empty preamble and no subsections", () => {
+  expect(parseSectionBody([], 2)).toEqual({ preamble: [], subsections: [] });
+});

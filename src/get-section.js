@@ -41,3 +41,39 @@ export function locateSection(lines, heading) {
   }
   return null;
 }
+
+// Parse a section's body lines into { preamble, subsections }.
+// A "sub-section" opens on a heading at exactly `sectionLevel + 1`. Deeper-level
+// headings (sectionLevel + 2 and below) stay part of the current sub-section's body,
+// or stay in the preamble if no sub-section has opened yet.
+//
+// This is tighter than "any deeper level opens a sub-section" — it matches how users
+// realistically structure daily notes (`## Rollover` with `### asap`, `### this week`
+// sub-sections) and avoids ambiguity when merging.
+//
+// Returns:
+//   {
+//     preamble: string[],        // lines before first sub-header
+//     subsections: [
+//       { heading: string, headingLevel: number, body: string[] }
+//     ]
+//   }
+export function parseSectionBody(bodyLines, sectionLevel) {
+  const preamble = [];
+  const subsections = [];
+  let current = null;
+
+  for (const line of bodyLines) {
+    const lvl = headingLevel(line);
+    const opensSub = lvl > 0 && lvl === sectionLevel + 1;
+    if (opensSub) {
+      current = { heading: line, headingLevel: lvl, body: [] };
+      subsections.push(current);
+    } else if (current) {
+      current.body.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+  return { preamble, subsections };
+}
