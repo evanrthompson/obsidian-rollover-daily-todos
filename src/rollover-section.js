@@ -104,3 +104,27 @@ export function trimBodyLines(lines, opts) {
 
   return { kept, rolledLineIndices };
 }
+
+// Trim a parsed Section tree. Returns a new tree (old tree is not mutated) plus
+// a running count of unfinished todos carried forward.
+//
+//   trimSection(section, opts) -> { section: trimmedSection, rolledCount: number }
+export function trimSection(section, opts) {
+  const preambleResult = trimBodyLines(section.preamble, opts);
+  let rolledCount = preambleResult.rolledLineIndices.length;
+
+  const subsections = section.subsections.map((sub) => {
+    const subResult = trimBodyLines(sub.body, opts);
+    rolledCount += subResult.rolledLineIndices.length;
+    return {
+      heading: sub.heading,
+      headingLevel: sub.headingLevel,
+      body: subResult.kept,
+    };
+  });
+
+  return {
+    section: { preamble: preambleResult.kept, subsections },
+    rolledCount,
+  };
+}

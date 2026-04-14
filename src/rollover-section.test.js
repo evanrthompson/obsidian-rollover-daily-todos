@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { trimBodyLines } from "./rollover-section";
+import { trimBodyLines, trimSection } from "./rollover-section";
 
 const defaultOpts = {
   doneStatusMarkers: "xX-",
@@ -97,4 +97,77 @@ test("trimBodyLines preserves deeper nested children under unfinished todo", () 
     "        - [ ] grandchild",
     "- [ ] sibling",
   ]);
+});
+
+test("trimSection trims preamble and each sub-section's body", () => {
+  const section = {
+    preamble: ["- [x] done in preamble", "- [ ] open in preamble"],
+    subsections: [
+      {
+        heading: "### asap",
+        headingLevel: 3,
+        body: ["- [x] done", "- [ ] open", "    - [ ] child"],
+      },
+      {
+        heading: "### someday",
+        headingLevel: 3,
+        body: ["- [ ] later"],
+      },
+    ],
+  };
+  const { section: trimmed } = trimSection(section, {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  expect(trimmed.preamble).toEqual(["- [ ] open in preamble"]);
+  expect(trimmed.subsections).toEqual([
+    {
+      heading: "### asap",
+      headingLevel: 3,
+      body: ["- [ ] open", "    - [ ] child"],
+    },
+    {
+      heading: "### someday",
+      headingLevel: 3,
+      body: ["- [ ] later"],
+    },
+  ]);
+});
+
+test("trimSection preserves section structure (just verifies shape)", () => {
+  const section = {
+    preamble: ["- [ ] p1"],
+    subsections: [
+      { heading: "### a", headingLevel: 3, body: ["- [ ] a1"] },
+    ],
+  };
+  const result = trimSection(section, {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  expect(result.section.preamble).toEqual(["- [ ] p1"]);
+  expect(result.section.subsections[0].body).toEqual(["- [ ] a1"]);
+});
+
+test("trimSection returns total rolled count", () => {
+  const section = {
+    preamble: ["- [ ] p", "some text"],
+    subsections: [
+      {
+        heading: "### a",
+        headingLevel: 3,
+        body: ["- [ ] a1", "- [ ] a2", "- [x] a3"],
+      },
+      { heading: "### b", headingLevel: 3, body: [] },
+    ],
+  };
+  const { rolledCount } = trimSection(section, {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  // 1 (preamble todo) + 2 (sub-section a, excluding done) = 3
+  expect(rolledCount).toBe(3);
 });
