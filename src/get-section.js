@@ -1,6 +1,7 @@
 // Match an ATX heading: one or more '#' then a space then any content.
 // Returns 0 if line is not a heading, else the heading level (1-6).
 export function headingLevel(line) {
+  if (typeof line !== "string") return 0;
   const match = line.match(/^(#{1,6}) /);
   return match ? match[1].length : 0;
 }
