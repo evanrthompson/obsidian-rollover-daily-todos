@@ -38,11 +38,13 @@ function isEmptyTodoLine(line) {
 }
 
 // Walk `lines` and apply the trim rules.
-// Returns { kept: string[], rolledLineIndices: number[] }
+// Returns { kept: string[], rolledLineIndices: number[], rolledTodoCount: number }
 //   - `kept` = lines to carry forward into today's note (in order, with dropped subtrees excised)
 //   - `rolledLineIndices` = indices into the INPUT `lines` of unfinished-todo lines (and
 //     optionally their children) — used to remove them from yesterday when
 //     deleteOnComplete is on.
+//   - `rolledTodoCount` = number of unfinished-todo items carried forward (parents only,
+//     not children). Used for the user-facing notice "N todos rolled over".
 //
 // Rules:
 //   - Empty unfinished todo (incl. malformed `- [  ]`):
