@@ -291,8 +291,10 @@ export function performSectionRollover(yesterdayContent, todayContent, headingLi
       headingLine,
       opts
     );
-    // If nothing was removed, don't rewrite the file.
-    if (newYesterdayContent === yesterdayContent) {
+    // If nothing was removed, don't rewrite the file. Compare against the
+    // LF-normalized original so CRLF files don't trigger a spurious rewrite.
+    const yesterdayNormalized = yesterdayContent.split(/\r?\n/).join("\n");
+    if (newYesterdayContent === yesterdayNormalized) {
       newYesterdayContent = null;
     }
   }
