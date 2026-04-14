@@ -34,8 +34,10 @@ export default class RolloverSettingTab extends PluginSettingTab {
 
     this.containerEl.empty();
     new Setting(this.containerEl)
-      .setName("Template heading")
-      .setDesc("Which heading from your template should the todos go under")
+      .setName("Rollover section heading")
+      .setDesc(
+        "The heading that delimits the rollover section on both yesterday's and today's daily notes. Everything inside this section (sub-headers, todos, notes) is copied to today's note when a new daily note is created, with completed todos and their nested content left behind. Example: '## Rollover'. The section ends at the next heading of equal or higher level; sub-headers inside (e.g. '### asap', '### this week') are preserved. Unfinished todos are merged under matching sub-headers on today's note, or appended as new sub-headers if today doesn't have them yet."
+      )
       .addDropdown((dropdown) =>
         dropdown
           .addOptions({
@@ -55,7 +57,7 @@ export default class RolloverSettingTab extends PluginSettingTab {
     new Setting(this.containerEl)
       .setName("Delete todos from previous day")
       .setDesc(
-        `Once todos are found, they are added to Today's Daily Note. If successful, they are deleted from Yesterday's Daily note. Enabling this is destructive and may result in lost data. Keeping this disabled will simply duplicate them from yesterday's note and place them in the appropriate section. Note that currently, duplicate todos will be deleted regardless of what heading they are in, and which heading you choose from above.`
+        "Removes rolled unfinished todos from yesterday's rollover section after they are copied to today's note. Sub-headers, completed todos, and non-todo text remain on yesterday's note. Enabling this is destructive — use the undo command within 2 minutes if you need to revert."
       )
       .addToggle((toggle) =>
         toggle
