@@ -194,26 +194,19 @@ export function mergeSection(yesterday, today, opts) {
 //
 // Returns the modified content string. If the heading is not found, returns content
 // unchanged.
-export function removeRolledFromYesterday(content, heading, opts) {
-  const lines = content.split("\n");
-  const location = locateSection(lines, heading);
-  if (!location) return content;
+export function removeRolledFromYesterday(fileContent, headingLine, opts) {
+  const lines = fileContent.split(/\r?\n/);
+  const loc = locateSection(lines, headingLine);
+  if (!loc) return fileContent;
 
-  const { headingIndex, endIndex } = location;
-  const bodyStart = headingIndex + 1;
-  const bodyEnd = endIndex;
-  const bodyLines = lines.slice(bodyStart, bodyEnd);
+  const sectionStart = loc.headingIndex + 1;
+  const body = lines.slice(sectionStart, loc.endIndex);
+  const { rolledLineIndices } = trimBodyLines(body, opts);
 
-  const { rolledLineIndices } = trimBodyLines(bodyLines, opts);
-  const rolledSet = new Set(rolledLineIndices);
+  const removeSet = new Set(rolledLineIndices.map((i) => i + sectionStart));
+  const kept = lines.filter((_, idx) => !removeSet.has(idx));
 
-  const newBody = bodyLines.filter((_, i) => !rolledSet.has(i));
-  const result = [
-    ...lines.slice(0, bodyStart),
-    ...newBody,
-    ...lines.slice(bodyEnd),
-  ];
-  return result.join("\n");
+  return kept.join("\n");
 }
 
 // Flatten a Section tree back into an array of lines, preserving order.
