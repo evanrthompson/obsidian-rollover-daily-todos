@@ -220,8 +220,13 @@ export default class RolloverTodosPlugin extends Plugin {
         : `Rolled over ${rolled} todo${rolled === 1 ? "" : "s"} into "${templateHeading}".`;
     new Notice(message, 4000 + message.length * 3);
 
-    this.undoHistoryTime = new Date();
-    this.undoHistory = [undoHistoryInstance];
+    const didModify =
+      undoHistoryInstance.today.file !== undefined ||
+      undoHistoryInstance.previousDay.file !== undefined;
+    if (didModify) {
+      this.undoHistoryTime = new Date();
+      this.undoHistory = [undoHistoryInstance];
+    }
   }
 
   async onload() {
