@@ -2,9 +2,47 @@
 
 [![Build](https://github.com/lumoe/obsidian-rollover-daily-todos/actions/workflows/ci.yml/badge.svg)](https://github.com/lumoe/obsidian-rollover-daily-todos/actions/workflows/ci.yml)
 
-This Obsidian plugin will rollover any incomplete todo items from the previous daily note (could be yesterday, or a week ago) to today. This is triggered automatically when a new daily note is created via the internal `Daily notes` plugin, or the `Periodic Notes` plugin., It can also be run as a command from the Command Palette.
+This Obsidian plugin rolls over unfinished todos from the previous daily note (could be yesterday, or a week ago) to today by copying a delimited **section** of the previous day's note into the new one. Completed todos and their nested content are left behind; sub-headers and unfinished todos inside the section are preserved. This is triggered automatically when a new daily note is created via the internal `Daily notes` plugin or the `Periodic Notes` plugin, and can also be run as a command from the Command Palette.
 
 ![A demo of the plugin working](./demo.gif)
+
+## Example daily-note template
+
+```markdown
+# {{date}}
+
+## Rollover
+### asap
+### this week
+### someday
+
+## Notes
+```
+
+When a new daily note is created, the plugin finds the `## Rollover` heading on yesterday's note, copies everything inside it (sub-headers, todos, and loose text), and merges that content into today's `## Rollover` section. Completed todos and anything indented beneath them are left behind on yesterday's note.
+
+### How the section is delimited
+
+- The **Rollover section heading** setting names the heading that delimits the section (e.g. `## Rollover`).
+- The section begins on the line after that heading.
+- The section ends at the next heading of **equal or higher level** — so `## Notes` ends a `## Rollover` section; `### asap` does not. Sub-headers can nest freely inside.
+- The first occurrence of the heading on each note is used.
+
+### What rolls over
+
+- Unfinished todos (and their indented children, when "Roll over children of todos" is on).
+- Sub-headers inside the section — preserved so today's note keeps the same structure.
+- Loose text and paragraphs inside the section.
+
+### What does not roll over
+
+- Completed todos (per the "Done status markers" setting).
+- Anything indented beneath a completed todo.
+
+### Merge behavior on today's note
+
+- If today's note already has a matching sub-header (e.g. from the template), unfinished todos from yesterday are **appended** at the bottom of today's sub-header.
+- If yesterday has a sub-header today doesn't, it's added at the end of today's rollover section.
 
 ## Usage
 
@@ -31,35 +69,51 @@ Note that if you create a daily note in the future, and you try to run this comm
 
 ## Settings
 
-### 1. Disable automatic rollover
+### Rollover section heading
 
-If you prefer to trigger the rollover of your todos manually, you can use this setting to prevent the plugin from rolling them over when a new note is created.
+Select the heading that delimits the rollover section. The dropdown lists all headings from your daily-note template, plus `None`. If set to `None`, rollover is disabled and the plugin will show a notice prompting you to configure it.
 
-### 2. Template Heading
+Example: `## Rollover`.
 
-If you chose a template file to use for new daily notes in `Daily notes > Settings` or `Periodic Notes > Settings`, you will be able to choose a heading for incomplete notes to roll into. Note that incomplete todos are taken from the entire file, regardless of what heading they are under. And they are all rolled into today's daily note, right under the heading of choice.
+The section begins on the line after this heading and ends at the next heading of equal or higher level (or end of file).
 
-If you leave this field as blank, or select `None`, then incomplete todos will be rolled onto the end of today's note (for new notes with no template, the end is the beginning of the note).
+### Delete todos from previous day
 
-### 3. Delete todos from previous day
+When this setting is on, the unfinished todos that got rolled over are removed from yesterday's rollover section. Sub-headers, completed todos, and non-todo text stay on yesterday's note. Enabling this is destructive — use the `Undo last rollover` command within 2 minutes if you need to revert.
 
-By default, this plugin will actually make a copy of incomplete todos. So if you forgot to wash your dog yesterday, and didn't check it off, then you will have an incomplete checkmark on yesterday's daily note, and a new incomplete checkmark will be rolled into today's daily note. If you use the `Undo last rollover` command, deleted todos will be restored (remember, the `time limit on this is 2 minutes`).
+When off (default), rolled todos are duplicated: they appear on both yesterday's and today's notes.
 
-Toggling this setting on will remove incomplete todos from the previous daily note once today's daily note has a copy of them.
+### Remove empty todos in rollover
 
-### 4. Remove empty todos in rollover
+When this setting is on, empty unfinished todos (e.g. `- [ ]` with no text after it) are dropped from the rollover. They stay on yesterday's note (they weren't rolled) unless you also have "Delete todos from previous day" on — even then, since they weren't rolled, they are not deleted from yesterday's note. They only stop showing up on today's note.
 
-By default, this plugin will roll over anything that has a checkbox, whether it has content or not. Toggling this setting on will ignore empty todos. If you have **#3** from above toggled on, it will also delete empty todos.
+### Roll over children of todos
 
-### 5. Roll over children of todos
+When this setting is on, indented lines beneath an unfinished todo (sub-todos, notes, etc.) roll over along with the parent. When off, only the todo line itself rolls.
 
-By default, only the actual todos are rolled over. If you add nested Markdown elements beneath your todos, these are not rolled over but stay in place. Toggling this setting on allows for also migrating the nested elements, including ones that are completed.
+### Automatic rollover on daily note open
 
-### 6. Done status markers
+When on (default), the plugin automatically rolls over on daily-note creation. When off, you trigger rollover manually via the `Rollover Todos Now` command.
 
-By default, the plugin considers checkboxes containing 'x', 'X', or '-' as completed tasks that won't be rolled over. You can customize this by adding any characters that should be considered "done" markers. For example, adding '?+>' would also treat checkboxes like '[?]', '[+]', and '[>]' as completed tasks. This is useful for users of custom status markers like the [Obsidian Tasks](https://publish.obsidian.md/tasks/Introduction) plugin.
+### Done status markers
 
-The plugin supports Unicode characters, including complex emoji and grapheme clusters, in checkbox content. This means you can use emojis or special Unicode characters as status markers and they will be handled correctly.
+Characters that represent "done" in checkboxes. Default is `xX-`. Add any characters that should be considered completed. For example, adding `?+>` treats `[?]`, `[+]`, and `[>]` as done. Supports Unicode and emoji.
+
+### Add extra blank line between heading and todos
+
+Inserts a blank line between existing content and content appended during rollover (applies per sub-section body, and between today's preamble and yesterday's appended preamble).
+
+## Breaking change in 1.3.0
+
+Versions prior to 1.3.0 rolled over every unfinished todo in the previous day's note as a flat list. 1.3.0 replaces this with section-based rollover: the plugin only touches the content inside the configured section heading on both notes.
+
+**To upgrade:**
+
+1. Add a section heading (e.g. `## Rollover`) to your daily-note template.
+2. Move the todos you want to roll into that section (optionally under sub-headers like `### asap`).
+3. Set "Rollover section heading" in plugin settings to that heading.
+
+If the heading is not set, or is not present on either note, the plugin shows a notice and does nothing.
 
 ## Bugs/Issues
 
