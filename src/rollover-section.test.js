@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { trimBodyLines, trimSection, mergeSection, serializeSection } from "./rollover-section";
+import { trimBodyLines, trimSection, mergeSection, serializeSection, removeRolledFromYesterday } from "./rollover-section";
 
 const defaultOpts = {
   doneStatusMarkers: "xX-",
@@ -308,4 +308,47 @@ test("serializeSection with only preamble", () => {
 
 test("serializeSection of fully empty section returns empty array", () => {
   expect(serializeSection({ preamble: [], subsections: [] })).toEqual([]);
+});
+
+test("removeRolledFromYesterday removes unfinished rolled todos, keeps completed and non-todo lines", () => {
+  const content = ["## Rollover", "- [x] done", "some note", "- [ ] real"].join("\n");
+  const result = removeRolledFromYesterday(content, "## Rollover", {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  // completed todo and non-todo line stay; unfinished todo is removed (it was rolled)
+  expect(result).toBe(["## Rollover", "- [x] done", "some note"].join("\n"));
+});
+
+test("removeRolledFromYesterday returns content unchanged when heading not found", () => {
+  const content = ["## Other", "- [ ] real"].join("\n");
+  const result = removeRolledFromYesterday(content, "## Rollover", {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  expect(result).toBe(content);
+});
+
+test("removeRolledFromYesterday removes rolled todo and its children when rolloverChildren=true", () => {
+  const content = ["## Rollover", "- [ ] parent", "    - [ ] child"].join("\n");
+  const result = removeRolledFromYesterday(content, "## Rollover", {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: false,
+  });
+  expect(result).toBe("## Rollover");
+});
+
+test("removeRolledFromYesterday with removeEmptyTodos=true leaves empty todos in place (they weren't rolled)", () => {
+  const content = ["## Rollover", "- [ ] ", "- [ ] real"].join("\n");
+  const result = removeRolledFromYesterday(content, "## Rollover", {
+    doneStatusMarkers: "xX-",
+    rolloverChildren: true,
+    removeEmptyTodos: true,
+  });
+  // "- [ ] real" gets rolled → removed from yesterday.
+  // "- [ ] " is dropped by removeEmptyTodos → stays on yesterday (it wasn't rolled).
+  expect(result).toBe(["## Rollover", "- [ ] "].join("\n"));
 });

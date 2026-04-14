@@ -1,4 +1,5 @@
 import { getTodoStatus, getIndent } from "./todo-utils";
+import { locateSection } from "./get-section";
 
 // Return the count of consecutive lines after `start` whose indentation is strictly
 // greater than `baseIndent`. These represent "children" of the line at `start`.
@@ -183,6 +184,36 @@ export function mergeSection(yesterday, today, opts) {
   }
 
   return merged;
+}
+
+// Remove rolled (unfinished, non-empty) todos from yesterday's section in the raw file
+// content string. Only lines that would be carried forward into today (i.e. lines
+// included in rolledLineIndices by trimBodyLines) are deleted. Completed todos,
+// non-todo lines, sub-headings, and empty todos dropped by removeEmptyTodos all
+// remain in yesterday's file.
+//
+// Returns the modified content string. If the heading is not found, returns content
+// unchanged.
+export function removeRolledFromYesterday(content, heading, opts) {
+  const lines = content.split("\n");
+  const location = locateSection(lines, heading);
+  if (!location) return content;
+
+  const { headingIndex, endIndex } = location;
+  const bodyStart = headingIndex + 1;
+  const bodyEnd = endIndex;
+  const bodyLines = lines.slice(bodyStart, bodyEnd);
+
+  const { rolledLineIndices } = trimBodyLines(bodyLines, opts);
+  const rolledSet = new Set(rolledLineIndices);
+
+  const newBody = bodyLines.filter((_, i) => !rolledSet.has(i));
+  const result = [
+    ...lines.slice(0, bodyStart),
+    ...newBody,
+    ...lines.slice(bodyEnd),
+  ];
+  return result.join("\n");
 }
 
 // Flatten a Section tree back into an array of lines, preserving order.
