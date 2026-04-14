@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { locateSection } from "./get-section";
+import { locateSection, parseSectionBody } from "./get-section";
 
 test("locateSection finds heading and returns range to next equal-level heading", () => {
   const lines = [
@@ -91,8 +91,6 @@ test("locateSection returns null if heading arg is not a heading", () => {
   const lines = ["## Rollover", "- [ ] thing"];
   expect(locateSection(lines, "not a heading")).toBeNull();
 });
-
-import { parseSectionBody } from "./get-section";
 
 test("parseSectionBody with no sub-headers puts everything in preamble", () => {
   const body = ["- [ ] thing", "- [x] done", "some text"];
